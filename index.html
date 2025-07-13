@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>15種語言打招呼遊戲</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: sans-serif;
+      background-color: #f0f8ff;
+      text-align: center;
+    }
+    h1 {
+      margin-top: 10px;
+      font-size: 1.8vw;
+    }
+    .controls button {
+      font-size: 1.5em;
+      padding: 10px 20px;
+      margin: 5px;
+      border-radius: 8px;
+    }
+    .quiz-ui {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 10px;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 9999;
+    }
+    .quiz-ui button, .quiz-ui div {
+      font-size: 1em;
+      margin: 0;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 10px;
+      padding: 10px;
+      width: 100vw;
+      height: 60vh;
+      box-sizing: border-box;
+      margin: auto;
+    }
+    .btn {
+      background-color: #fff;
+      border: 2px solid #ccc;
+      border-radius: 10px;
+      padding: 10px;
+      cursor: pointer;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+      transition: transform 0.2s;
+      touch-action: manipulation;
+      font-size: 2vw;
+    }
+    .btn:active {
+      transform: scale(1.05);
+    }
+    .btn svg {
+      width: 120px;
+      height: 80px;
+      display: block;
+      margin: 0 auto 5px;
+      border: 1px solid black;
+      box-sizing: border-box;
+    }
+    .country-text {
+      font-size: 1em;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>用15種語言說「你好」</h1>
+  <div class="controls">
+    <button onclick="setMode('learn')">學習模式</button>
+    <button onclick="setMode('quiz')">測驗模式</button>
+  </div>
+
+  <div class="quiz-ui">
+    <button id="repeatBtn" style="display:none">🔁 再聽一次</button>
+    <div id="progress"></div>
+    <div id="score"></div>
+  </div>
+
+  <div class="grid" id="buttonGrid"></div>
+
+  <audio id="correctSound" src="audio/correct.mp3"></audio>
+  <audio id="wrongSound" src="audio/wrong.mp3"></audio>
+  <audio id="clickSound" src="audio/click.mp3"></audio>
+
+  <script>
+    const countries = [
+      { name: "美國", file: "hello_usa.m4a", flag: "us", text: "Hello" },
+      { name: "中華民國", file: "hello_taiwan.m4a", flag: "tw", text: "Ni hao" },
+      { name: "法國", file: "hello_france.m4a", flag: "fr", text: "Bonjour" },
+      { name: "日本", file: "hello_japan.m4a", flag: "jp", text: "Konnichiwa" },
+      { name: "韓國", file: "hello_korea.m4a", flag: "kr", text: "An nyeong" },
+      { name: "義大利", file: "hello_italy.m4a", flag: "it", text: "Ciao" },
+      { name: "德國", file: "hello_germany.m4a", flag: "de", text: "Guten Tag" },
+      { name: "西班牙", file: "hello_spain.m4a", flag: "es", text: "Hola" },
+      { name: "阿聯酋", file: "hello_uae.m4a", flag: "ae", text: "Marhaban" },
+      { name: "印度", file: "hello_india.m4a", flag: "in", text: "Namaste" },
+      { name: "越南", file: "hello_vietnam.m4a", flag: "vn", text: "Xin Chao" },
+      { name: "泰國", file: "hello_thailand.m4a", flag: "th", text: "Sawadee kha" },
+      { name: "俄羅斯", file: "hello_russia.m4a", flag: "ru", text: "Zdravstvuyte" },
+      { name: "肯亞", file: "hello_kenya.m4a", flag: "ke", text: "Jambo" },
+      { name: "夏威夷", file: "hello_hawaii.m4a", flag: "us", text: "Aloha" }
+    ];
+
+    let currentAudio = null;
+    let isQuizMode = false;
+    let quizQuestions = [];
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let buttonsDisabled = false;
+    let wrongAttempts = 0;
+
+    const grid = document.getElementById('buttonGrid');
+    const scoreDisplay = document.getElementById('score');
+    const progressDisplay = document.getElementById('progress');
+    const repeatBtn = document.getElementById('repeatBtn');
+    const correctSound = document.getElementById('correctSound');
+    const wrongSound = document.getElementById('wrongSound');
+    const clickSound = document.getElementById('clickSound');
+
+    function getFlagSVG(code) {
+      return `<svg><image href="https://flagcdn.com/${code}.svg" width="120" height="80" style="stroke:black;stroke-width:1"/></svg>`;
+    }
+
+    function renderButtons() {
+      grid.innerHTML = '';
+      countries.forEach((c, index) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.innerHTML = `${getFlagSVG(c.flag)}<br>${c.name}<br><span class="country-text">${c.text}</span>`;
+        btn.addEventListener('click', () => {
+          if (buttonsDisabled) return;
+          clickSound.play();
+          if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+          }
+          if (isQuizMode) {
+            handleQuizAnswer(index);
+          } else {
+            currentAudio = new Audio(`audio/${c.file}`);
+            currentAudio.play();
+          }
+        });
+        grid.appendChild(btn);
+      });
+    }
+
+    function setMode(mode) {
+      isQuizMode = (mode === 'quiz');
+      if (isQuizMode) {
+        startQuiz();
+        repeatBtn.style.display = 'inline-block';
+      } else {
+        scoreDisplay.textContent = '';
+        progressDisplay.textContent = '';
+        repeatBtn.style.display = 'none';
+      }
+    }
+
+    function startQuiz() {
+      quizQuestions = [...countries].sort(() => Math.random() - 0.5).slice(0, 10);
+      currentQuestionIndex = 0;
+      score = 0;
+      scoreDisplay.textContent = '分數：0 / 100';
+      askNextQuestion();
+    }
+
+    function askNextQuestion() {
+      if (currentQuestionIndex >= quizQuestions.length) {
+        scoreDisplay.textContent = `✅ 測驗結束！你的得分是 ${score} / 100`;
+        progressDisplay.textContent = '';
+        repeatBtn.style.display = 'none';
+        return;
+      }
+      wrongAttempts = 0;
+      const q = quizQuestions[currentQuestionIndex];
+      playAudio(q.file);
+      progressDisplay.textContent = `第 ${currentQuestionIndex + 1} 題 / 10`;
+    }
+
+    function playAudio(file) {
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      }
+      currentAudio = new Audio(`audio/${file}`);
+      currentAudio.play();
+    }
+
+    function disableButtonsFor(ms) {
+      buttonsDisabled = true;
+      setTimeout(() => {
+        buttonsDisabled = false;
+      }, ms);
+    }
+
+    function handleQuizAnswer(selectedIndex) {
+      const correct = quizQuestions[currentQuestionIndex];
+      disableButtonsFor(1000);
+      if (countries[selectedIndex].name === correct.name) {
+        score += 10;
+        scoreDisplay.textContent = `分數：${score} / 100`;
+        correctSound.play();
+        currentQuestionIndex++;
+        setTimeout(askNextQuestion, 1000);
+      } else {
+        wrongAttempts++;
+        wrongSound.play();
+        if (wrongAttempts >= 2) {
+          currentQuestionIndex++;
+          setTimeout(askNextQuestion, 1000);
+        } else {
+          setTimeout(() => playAudio(correct.file), 1000);
+        }
+      }
+    }
+
+    repeatBtn.addEventListener('click', () => {
+      if (isQuizMode && quizQuestions[currentQuestionIndex]) {
+        playAudio(quizQuestions[currentQuestionIndex].file);
+      }
+    });
+
+    renderButtons();
+  </script>
+</body>
+</html>
